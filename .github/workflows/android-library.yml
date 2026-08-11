@@ -3,8 +3,9 @@ name: Android library
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -40,28 +41,72 @@ jobs:
           chmod +x gradlew tools/setup-android-dependencies.sh
           tools/setup-android-dependencies.sh
 
+      - name: Resolve artifact version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ -n "$RELEASE_TAG" ]]; then
+            version="${RELEASE_TAG#v}"
+          else
+            version="0.1.0-SNAPSHOT"
+          fi
+          echo "VERSION_NAME=$version" >> "$GITHUB_ENV"
+
       - name: Build example APK
         run: ./gradlew -Pedgez.organicmaps.abis=arm64-v8a :example-app:assembleDebug
 
       - name: Build and publish local Maven repository
         run: |
-          ./gradlew \
+          ./gradlew -PVERSION_NAME="$VERSION_NAME" \
             :organicmaps-location-core:publishReleasePublicationToBuildRepository \
             :organicmaps-maps-world:publishReleasePublicationToBuildRepository \
             :organicmaps-sdk:publishReleasePublicationToBuildRepository
 
-      - name: Upload Android libraries
+      - name: Package release assets
+        run: |
+          asset_dir="build/release-assets"
+          mkdir -p "$asset_dir"
+          cp organicmaps-sdk/build/outputs/aar/organicmaps-sdk-release.aar \
+            "$asset_dir/organicmaps-sdk-$VERSION_NAME.aar"
+          cp organicmaps-location-core/build/outputs/aar/organicmaps-location-core-release.aar \
+            "$asset_dir/organicmaps-location-core-$VERSION_NAME.aar"
+          cp organicmaps-maps-world/build/outputs/aar/organicmaps-maps-world-release.aar \
+            "$asset_dir/organicmaps-maps-world-$VERSION_NAME.aar"
+          cp example-app/build/outputs/apk/debug/example-app-debug.apk \
+            "$asset_dir/edgez-organicmaps-example-$VERSION_NAME.apk"
+          (
+            cd build/maven-repository
+            zip -qr "../release-assets/edgez-organicmaps-maven-$VERSION_NAME.zip" .
+          )
+          (
+            cd "$asset_dir"
+            shasum -a 256 ./* > SHA256SUMS
+          )
+
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: edgez-organicmaps-${{ github.sha }}
-          path: build/maven-repository/
+          name: edgez-organicmaps-release-assets
+          path: build/release-assets/
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload example APK
-        uses: actions/upload-artifact@v4
+  attach-to-release:
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
         with:
-          name: edgez-organicmaps-example-${{ github.sha }}
-          path: example-app/build/outputs/apk/debug/example-app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
+          name: edgez-organicmaps-release-assets
+          path: release-assets
+
+      - name: Attach assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" release-assets/* --clobber

@@ -40,8 +40,17 @@ Override the version with `-PVERSION_NAME=1.0.0`. Applications normally depend
 on both `organicmaps-sdk` and `organicmaps-maps-world`; the SDK POM brings in
 `organicmaps-location-core` transitively.
 
-GitHub Actions performs the same release build and uploads the complete local
-Maven repository as a workflow artifact.
+GitHub Actions performs the same release build and uploads packaged artifacts
+for pushes, pull requests, and manual runs.
+
+When a GitHub Release is published, the workflow removes an optional leading
+`v` from its tag for the Maven version. For example, release tag `v1.2.0`
+publishes version `1.2.0` and attaches:
+
+- the complete Maven repository ZIP;
+- the SDK, location, and world-map AARs;
+- the example APK;
+- `SHA256SUMS` covering every attached binary.
 
 ## Example app
 
