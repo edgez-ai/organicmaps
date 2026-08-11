@@ -1,0 +1,67 @@
+name: Android library
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out source and dependencies
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install native build tools
+        run: sdkmanager 'cmake;3.22.1' 'ndk;29.0.14206865'
+
+      - name: Prepare Organic Maps dependencies
+        run: |
+          chmod +x gradlew tools/setup-android-dependencies.sh
+          tools/setup-android-dependencies.sh
+
+      - name: Build example APK
+        run: ./gradlew -Pedgez.organicmaps.abis=arm64-v8a :example-app:assembleDebug
+
+      - name: Build and publish local Maven repository
+        run: |
+          ./gradlew \
+            :organicmaps-location-core:publishReleasePublicationToBuildRepository \
+            :organicmaps-maps-world:publishReleasePublicationToBuildRepository \
+            :organicmaps-sdk:publishReleasePublicationToBuildRepository
+
+      - name: Upload Android libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: edgez-organicmaps-${{ github.sha }}
+          path: build/maven-repository/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload example APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: edgez-organicmaps-example-${{ github.sha }}
+          path: example-app/build/outputs/apk/debug/example-app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
