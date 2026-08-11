@@ -11,6 +11,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    permissions:
+      contents: write
 
     steps:
       - name: Check out source and dependencies
@@ -82,23 +84,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  attach-to-release:
-    if: github.event_name == 'release'
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download release assets
-        uses: actions/download-artifact@v4
-        with:
-          name: edgez-organicmaps-release-assets
-          path: release-assets
-
       - name: Attach assets to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" release-assets/* --clobber
+        run: >-
+          gh release upload "$RELEASE_TAG" build/release-assets/*
+          --clobber --repo "$GITHUB_REPOSITORY"
