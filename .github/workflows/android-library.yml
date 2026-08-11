@@ -36,11 +36,6 @@ jobs:
       - name: Install native build tools
         run: sdkmanager 'cmake;3.22.1' 'ndk;29.0.14206865'
 
-      - name: Prepare Organic Maps dependencies
-        run: |
-          chmod +x gradlew tools/setup-android-dependencies.sh
-          tools/setup-android-dependencies.sh
-
       - name: Resolve artifact version
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}

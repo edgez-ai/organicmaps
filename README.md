@@ -17,10 +17,10 @@ copies.
 
 ## Build
 
-Install JDK 21, Android SDK 36, NDK `29.0.14206865`, and CMake 3.22.1, then run:
+Clone with recursive submodules, then install JDK 21, Android SDK 36, NDK
+`29.0.14206865`, and CMake 3.22.1. Build with:
 
 ```sh
-tools/setup-android-dependencies.sh
 ./gradlew \
   :organicmaps-location-core:publishReleasePublicationToBuildRepository \
   :organicmaps-maps-world:publishReleasePublicationToBuildRepository \
@@ -40,8 +40,9 @@ Override the version with `-PVERSION_NAME=1.0.0`. Applications normally depend
 on both `organicmaps-sdk` and `organicmaps-maps-world`; the SDK POM brings in
 `organicmaps-location-core` transitively.
 
-GitHub Actions performs the same release build and uploads packaged artifacts
-for pushes, pull requests, and manual runs.
+GitHub Actions checks out the pinned recursive submodules, performs the same
+release build, and uploads packaged artifacts for pushes, pull requests, and
+manual runs. No dependency-generation step is required after checkout.
 
 When a GitHub Release is published, the workflow removes an optional leading
 `v` from its tag for the Maven version. For example, release tag `v1.2.0`
@@ -63,7 +64,6 @@ reapply the test camera and overlays.
 Build the APK from the command line with:
 
 ```sh
-tools/setup-android-dependencies.sh
 ./gradlew -Pedgez.organicmaps.abis=arm64-v8a :example-app:assembleDebug
 ```
 
@@ -75,6 +75,11 @@ The `edgez.organicmaps.abis` property keeps local smoke builds small. Use
 `x86_64` for an Intel emulator, or a comma-separated list when needed. Release
 publication omits the property and builds `armeabi-v7a`, `arm64-v8a`, `x86`,
 and `x86_64`.
+
+Run `tools/setup-android-dependencies.sh` manually when initially cloning
+without `--recurse-submodules`, or when synchronizing the pinned submodules
+with their configured upstream repositories. Builds use the submodule commits
+recorded by this repository as their source of truth.
 
 ## Attribution
 
