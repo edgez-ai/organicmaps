@@ -41,8 +41,8 @@ on both `organicmaps-sdk` and `organicmaps-maps-world`; the SDK POM brings in
 `organicmaps-location-core` transitively.
 
 GitHub Actions checks out the pinned recursive submodules, performs the same
-release build, and uploads packaged artifacts for pushes, pull requests, and
-manual runs. No dependency-generation step is required after checkout.
+release build, and uploads packaged artifacts when a GitHub Release is
+published. No dependency-generation step is required after checkout.
 
 When a GitHub Release is published, the workflow removes an optional leading
 `v` from its tag for the Maven version. For example, release tag `v1.2.0`
