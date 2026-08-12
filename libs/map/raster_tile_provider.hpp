@@ -153,6 +153,7 @@ private:
   };
   void OpenMbtilesArchives();
   void CloseMbtilesArchives();
+  bool HasMbtilesArchives();
   bool ReadMbtilesTile(int z, int x, int y, std::vector<char> & encoded);
 
   // Non-const: Reconfigure() mutates m_urlTemplate (under m_activeMutex) and m_maxCacheBytes

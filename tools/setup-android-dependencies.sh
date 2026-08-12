@@ -29,7 +29,6 @@ ANDROID_SUBMODULES=(
 # recursive checkout (currently more than 170 modules and tools).
 BOOST_ROOT_MODULES=(
   algorithm
-  archive
   circular_buffer
   container
   container_hash
@@ -41,6 +40,7 @@ BOOST_ROOT_MODULES=(
   math
   polygon
   range
+  serialization
   unordered
   utility
 )
@@ -53,7 +53,8 @@ cd "$BOOST_PATH"
 git submodule sync -- tools/boostdep
 git submodule update --init --depth 1 -- tools/boostdep
 for module in "${BOOST_ROOT_MODULES[@]}"; do
-  python3 tools/boostdep/depinst/depinst.py -g "--depth 1" "$module"
+  # Initialize the requested root before scanning its transitive headers.
+  python3 tools/boostdep/depinst/depinst.py -u -g "--depth 1" "$module"
 done
 
 printf 'Android dependencies are ready. Initialized Boost modules: '

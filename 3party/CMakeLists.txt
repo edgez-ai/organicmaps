@@ -12,7 +12,7 @@ if (NOT WITH_SYSTEM_PROVIDED_3PARTY)
   # Boost is checked out as its modular Git repository. Consume the tracked
   # module headers directly so a clean recursive checkout is buildable without
   # generating Boost's umbrella symlink tree first.
-  file(GLOB boost_include_dirs LIST_DIRECTORIES true
+  file(GLOB boost_include_dirs CONFIGURE_DEPENDS LIST_DIRECTORIES true
     "${OMIM_ROOT}/3party/boost/libs/*/include"
     "${OMIM_ROOT}/3party/boost/libs/numeric/*/include"
   )
@@ -57,6 +57,7 @@ add_subdirectory(glaze)
 add_subdirectory(minizip)
 add_subdirectory(open-location-code)
 add_subdirectory(opening_hours)
+add_subdirectory(sqlite)
 add_subdirectory(stb_image)
 add_subdirectory(succinct)
 

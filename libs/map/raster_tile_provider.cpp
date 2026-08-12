@@ -271,6 +271,12 @@ void RasterTileProvider::CloseMbtilesArchives()
   m_archives.clear();
 }
 
+bool RasterTileProvider::HasMbtilesArchives()
+{
+  std::lock_guard lock(m_archiveMutex);
+  return !m_archives.empty();
+}
+
 bool RasterTileProvider::ReadMbtilesTile(int z, int x, int y, std::vector<char> & encoded)
 {
   std::lock_guard lock(m_archiveMutex);
@@ -360,8 +366,11 @@ bool RasterTileProvider::RequestTile(df::TileKey const & tileKey, dp::Background
   {
     std::lock_guard lock(m_activeMutex);
     urlTemplate = m_params.m_urlTemplate;  // may be changed live by Reconfigure
-    if (urlTemplate.empty())
-      return false;  // not configured
+  }
+  if (urlTemplate.empty() && !HasMbtilesArchives())
+    return false;  // neither an online source nor an offline archive is configured
+  {
+    std::lock_guard lock(m_activeMutex);
     if (!m_active.insert(tileKey).second)
       return true;  // already in flight
   }

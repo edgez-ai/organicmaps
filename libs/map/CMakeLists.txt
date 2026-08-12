@@ -106,6 +106,7 @@ target_link_libraries(${PROJECT_NAME}
     drape_frontend
     agg
   PRIVATE
+    sqlite3
     stb_image
 )
 
