@@ -158,6 +158,10 @@ public class Framework
   // Custom raster background tiles (Settings -> Background Map tiles).
   public static native void nativeSetBackgroundTiles(boolean enabled, @NonNull String url, int cacheSizeMB,
                                                      int areaOpacityPct);
+  /** Local MBTiles paths are searched in order, then the optional XYZ URL is used as fallback. */
+  public static native void nativeSetBackgroundTileSources(boolean enabled, @NonNull String url,
+                                                           @NonNull String[] mbtilesPaths, int cacheSizeMB,
+                                                           int areaOpacityPct);
   // Flips only the on/off flag, keeping the configured URL / cache size / area opacity.
   public static native void nativeSetBackgroundTilesEnabled(boolean enabled);
   @NonNull

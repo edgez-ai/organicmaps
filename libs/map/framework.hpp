@@ -212,7 +212,8 @@ protected:
   void InitTransliteration();
 
   // Builds m_rasterTileProvider for the given XYZ source and the "bg_tiles" disk cache.
-  void CreateBackgroundTilesProvider(std::string const & url, uint32_t cacheSizeMB);
+  void CreateBackgroundTilesProvider(std::string const & url, std::vector<std::string> mbtilesPaths,
+                                     uint32_t cacheSizeMB);
 
 public:
   explicit Framework(FrameworkParams const & params = {}, bool loadMaps = true);
@@ -713,6 +714,10 @@ public:
   // [1, 1000]; areaOpacityPct (0..100) is the opacity of vector area fills drawn over the imagery
   // (0 hides them). The layer renders only when enabled AND a non-empty URL is set.
   void SetBackgroundTiles(bool enabled, std::string url, uint32_t cacheSizeMB, uint32_t areaOpacityPct);
+  // Applies online and local sources together. Earlier MBTiles paths take priority; a missing local
+  // tile falls back to the URL when it is non-empty.
+  void SetBackgroundTileSources(bool enabled, std::string url, std::vector<std::string> mbtilesPaths,
+                                uint32_t cacheSizeMB, uint32_t areaOpacityPct);
   // Flips only the on/off flag, keeping the configured URL / cache size / area opacity. Lighter than
   // SetBackgroundTiles: it just switches the rendered mode (creating the provider on first enable).
   void SetBackgroundTilesEnabled(bool enabled);

@@ -16,6 +16,10 @@ import app.organicmaps.sdk.MapRenderingListener;
 import app.organicmaps.sdk.MapView;
 import app.organicmaps.sdk.OrganicMaps;
 import java.io.IOException;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Locale;
 
 public final class MainActivity extends FragmentActivity
@@ -23,6 +27,7 @@ public final class MainActivity extends FragmentActivity
   private static final double CENTER_LATITUDE = 59.3293;
   private static final double CENTER_LONGITUDE = 18.0686;
   private static final int DEFAULT_ZOOM = 12;
+  private static final String SATELLITE_ASSET = "stockholm_satellite.mbtiles";
 
   private OrganicMaps mOrganicMaps;
   private MapController mMapController;
@@ -122,6 +127,18 @@ public final class MainActivity extends FragmentActivity
     Framework.nativeSetApiPointsFromUrl();
     Framework.nativeSetGpsCursorColor(0xFF1E88E5L);
 
+    try
+    {
+      final File satelliteArchive = copyAssetToFiles(SATELLITE_ASSET);
+      Framework.nativeSetBackgroundTileSources(
+          true, "", new String[] {satelliteArchive.getAbsolutePath()}, 50, 20);
+    }
+    catch (IOException error)
+    {
+      mStatus.setText("Satellite archive failed: " + error.getMessage());
+      return;
+    }
+
     final double[] geofence = {
         59.3370, 18.0540,
         59.3375, 18.0860,
@@ -137,8 +154,32 @@ public final class MainActivity extends FragmentActivity
 
     mMapController.updateCompassOffset(0, 0);
     mMapController.getView().postInvalidate();
-    mStatus.setText("3 sample nodes · 1 sample geofence");
+    mStatus.setText("Stockholm offline satellite · 3 nodes · 1 geofence");
     mResetButton.setEnabled(true);
+  }
+
+  private File copyAssetToFiles(String assetName) throws IOException
+  {
+    final File directory = new File(getFilesDir(), "mbtiles");
+    if (!directory.isDirectory() && !directory.mkdirs())
+      throw new IOException("Cannot create " + directory);
+
+    final File destination = new File(directory, assetName);
+    if (destination.isFile() && destination.length() > 0)
+      return destination;
+
+    final File temporary = new File(directory, assetName + ".tmp");
+    try (InputStream input = getAssets().open(assetName);
+         OutputStream output = new FileOutputStream(temporary))
+    {
+      final byte[] buffer = new byte[64 * 1024];
+      int count;
+      while ((count = input.read(buffer)) != -1)
+        output.write(buffer, 0, count);
+    }
+    if (!temporary.renameTo(destination))
+      throw new IOException("Cannot install " + assetName);
+    return destination;
   }
 
   private static String sampleMarkerUrl()

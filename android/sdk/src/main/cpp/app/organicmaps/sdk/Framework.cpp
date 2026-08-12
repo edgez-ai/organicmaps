@@ -975,6 +975,24 @@ JNIEXPORT void Java_app_organicmaps_sdk_Framework_nativeSetBackgroundTiles(JNIEn
                             static_cast<uint32_t>(cacheSizeMB), static_cast<uint32_t>(areaOpacityPct));
 }
 
+JNIEXPORT void Java_app_organicmaps_sdk_Framework_nativeSetBackgroundTileSources(
+    JNIEnv * env, jclass, jboolean enabled, jstring url, jobjectArray jMbtilesPaths, jint cacheSizeMB,
+    jint areaOpacityPct)
+{
+  std::vector<std::string> mbtilesPaths;
+  auto const count = env->GetArrayLength(jMbtilesPaths);
+  mbtilesPaths.reserve(count);
+  for (jsize i = 0; i < count; ++i)
+  {
+    jni::ScopedLocalRef<jstring> const path(
+        env, static_cast<jstring>(env->GetObjectArrayElement(jMbtilesPaths, i)));
+    mbtilesPaths.push_back(jni::ToNativeString(env, path.get()));
+  }
+  frm()->SetBackgroundTileSources(static_cast<bool>(enabled), jni::ToNativeString(env, url),
+                                  std::move(mbtilesPaths), static_cast<uint32_t>(cacheSizeMB),
+                                  static_cast<uint32_t>(areaOpacityPct));
+}
+
 JNIEXPORT void Java_app_organicmaps_sdk_Framework_nativeSetBackgroundTilesEnabled(JNIEnv *, jclass, jboolean enabled)
 {
   frm()->SetBackgroundTilesEnabled(static_cast<bool>(enabled));

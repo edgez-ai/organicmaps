@@ -1672,7 +1672,7 @@ void Framework::CreateDrapeEngine(ref_ptr<dp::GraphicsContextFactory> contextFac
   bool const bgTilesActive = bgTilesEnabled && !bgTilesUrl.empty();
 
   if (bgTilesActive && !m_rasterTileProvider)
-    CreateBackgroundTilesProvider(bgTilesUrl, GetBackgroundTilesCacheSize());
+    CreateBackgroundTilesProvider(bgTilesUrl, {}, GetBackgroundTilesCacheSize());
 
   auto tileBackgroundReadFn = [this](df::TileKey const & tileKey, dp::BackgroundMode mode) -> bool
   {
@@ -2720,10 +2720,12 @@ void Framework::SetMapLanguageCode(std::string const & langCode)
     m_searchAPI->SetLocale(langCode);
 }
 
-void Framework::CreateBackgroundTilesProvider(std::string const & url, uint32_t cacheSizeMB)
+void Framework::CreateBackgroundTilesProvider(std::string const & url, std::vector<std::string> mbtilesPaths,
+                                              uint32_t cacheSizeMB)
 {
   RasterTileProvider::Params rp;
   rp.m_urlTemplate = url;
+  rp.m_mbtilesPaths = std::move(mbtilesPaths);
   rp.m_cacheSubdir = "bg_tiles";
   rp.m_maxZoom = 19;  // standard web-mercator detail; deeper OM tiles reuse the ancestor sub-rect.
   rp.m_maxCacheBytes = static_cast<uint64_t>(cacheSizeMB) * 1024 * 1024;
@@ -2745,6 +2747,12 @@ void Framework::CreateBackgroundTilesProvider(std::string const & url, uint32_t 
 
 void Framework::SetBackgroundTiles(bool enabled, std::string url, uint32_t cacheSizeMB, uint32_t areaOpacityPct)
 {
+  SetBackgroundTileSources(enabled, std::move(url), {}, cacheSizeMB, areaOpacityPct);
+}
+
+void Framework::SetBackgroundTileSources(bool enabled, std::string url, std::vector<std::string> mbtilesPaths,
+                                         uint32_t cacheSizeMB, uint32_t areaOpacityPct)
+{
   // Single entry point for the settings UI: persist all values and apply them at once. We only persist
   // the URL/cache/opacity when enabling — when disabled, keep the previously stored values untouched and
   // just flip the off-flag. Otherwise editing the URL while the layer is off would persist it and then
@@ -2762,14 +2770,14 @@ void Framework::SetBackgroundTiles(bool enabled, std::string url, uint32_t cache
   settings::Set(kBgTilesCacheSizeMBKey, cacheSizeMB);
   settings::Set(kBgTilesAreaOpacityKey, areaOpacityPct);
 
-  bool const active = !url.empty();
+  bool const active = !url.empty() || !mbtilesPaths.empty();
   if (active)
   {
     auto const cacheBytes = static_cast<uint64_t>(cacheSizeMB) * 1024 * 1024;
     if (m_rasterTileProvider)
-      m_rasterTileProvider->Reconfigure(url, cacheBytes);  // clears the cache if the URL changed
+      m_rasterTileProvider->ReconfigureSources(url, std::move(mbtilesPaths), cacheBytes);
     else
-      CreateBackgroundTilesProvider(url, cacheSizeMB);
+      CreateBackgroundTilesProvider(url, std::move(mbtilesPaths), cacheSizeMB);
   }
 
   if (m_drapeEngine)
@@ -2797,7 +2805,7 @@ void Framework::SetBackgroundTilesEnabled(bool enabled)
   // The provider is created lazily at startup only when the layer was already on; create it here on
   // the first enable so SetTileBackgroundMode(Satellite) has tiles to render.
   if (active && !m_rasterTileProvider)
-    CreateBackgroundTilesProvider(url, GetBackgroundTilesCacheSize());
+    CreateBackgroundTilesProvider(url, {}, GetBackgroundTilesCacheSize());
 
   if (m_drapeEngine)
     m_drapeEngine->SetTileBackgroundMode(active ? dp::BackgroundMode::Satellite : dp::BackgroundMode::Default,
