@@ -15,6 +15,9 @@
 #include <unordered_set>
 #include <vector>
 
+struct sqlite3;
+struct sqlite3_stmt;
+
 // POC raster background-tile provider.
 //
 // Downloads standard web-mercator XYZ raster tiles (e.g. https://host/{z}/{x}/{y}.png),
@@ -38,6 +41,9 @@ public:
   {
     // URL template that must contain the {z}, {x}, {y} placeholders.
     std::string m_urlTemplate;
+    // Read-only MBTiles region packs. Earlier paths have higher priority. Missing tiles fall back
+    // to m_urlTemplate, allowing bundled/offline regions and online coverage to coexist.
+    std::vector<std::string> m_mbtilesPaths;
     // Sub-directory under Platform::WritableDir() used for the on-disk tile cache.
     std::string m_cacheSubdir = "bg_tiles_poc";
     // Minimum source (web-mercator) zoom to request. Tiles below it are skipped (low zooms are
@@ -64,6 +70,7 @@ public:
                          uint32_t width, uint32_t height, m2::RectF const & rect, std::vector<uint8_t> && rgba)>;
 
   RasterTileProvider(Params params, TReadyFn onReady);
+  ~RasterTileProvider();
 
   // Called on the render thread for every newly visible tile. Non-blocking: schedules the
   // fetch/decode on the Network thread pool.
@@ -78,6 +85,8 @@ public:
   // recreating is safe. When the URL changes the on-disk cache is cleared, since cached z/x/y now
   // map to a different source.
   void Reconfigure(std::string urlTemplate, uint64_t maxCacheBytes);
+  void ReconfigureSources(std::string urlTemplate, std::vector<std::string> mbtilesPaths,
+                          uint64_t maxCacheBytes);
 
 private:
   // Source web-mercator XYZ tile plus the UV sub-rect within it that the given OM tile maps to.
@@ -136,11 +145,23 @@ private:
   // Deletes every cached file and resets the index. Caller must hold m_cacheMutex.
   void ClearDiskCacheLocked();
 
+  struct MbtilesArchive
+  {
+    std::string m_path;
+    sqlite3 * m_db = nullptr;
+    sqlite3_stmt * m_readTile = nullptr;
+  };
+  void OpenMbtilesArchives();
+  void CloseMbtilesArchives();
+  bool ReadMbtilesTile(int z, int x, int y, std::vector<char> & encoded);
+
   // Non-const: Reconfigure() mutates m_urlTemplate (under m_activeMutex) and m_maxCacheBytes
   // (under m_cacheMutex). All other fields are immutable after construction.
   Params m_params;
   TReadyFn const m_onReady;
   std::string m_cacheDir;
+  std::mutex m_archiveMutex;
+  std::vector<MbtilesArchive> m_archives;
 #ifdef ENABLE_STATUS_PLACEHOLDERS
   std::array<Placeholder, static_cast<size_t>(Status::Count)> m_placeholders;
 #endif

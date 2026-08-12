@@ -13,6 +13,7 @@
 #include "base/logging.hpp"
 
 #include "3party/stb_image/stb_image.h"
+#include "sqlite3.h"
 
 #include <algorithm>
 #include <atomic>
@@ -223,6 +224,79 @@ RasterTileProvider::RasterTileProvider(Params params, TReadyFn onReady)
   // The scan stats every cached file — run it on the File thread instead of stalling the caller.
   // RequestTile's cache reads are posted to the same (serial) File queue, so they run after it.
   GetPlatform().RunTask(Platform::Thread::File, [this]() { InitDiskCache(); });
+  OpenMbtilesArchives();
+}
+
+RasterTileProvider::~RasterTileProvider()
+{
+  CloseMbtilesArchives();
+}
+
+void RasterTileProvider::OpenMbtilesArchives()
+{
+  std::lock_guard lock(m_archiveMutex);
+  CloseMbtilesArchives();
+  for (auto const & path : m_params.m_mbtilesPaths)
+  {
+    MbtilesArchive archive;
+    archive.m_path = path;
+    if (sqlite3_open_v2(path.c_str(), &archive.m_db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nullptr) != SQLITE_OK)
+    {
+      LOG(LWARNING, ("RasterTileProvider: cannot open MBTiles", path));
+      if (archive.m_db != nullptr)
+        sqlite3_close(archive.m_db);
+      continue;
+    }
+    char const * sql =
+        "SELECT tile_data FROM tiles WHERE zoom_level=?1 AND tile_column=?2 AND tile_row=?3 LIMIT 1";
+    if (sqlite3_prepare_v2(archive.m_db, sql, -1, &archive.m_readTile, nullptr) != SQLITE_OK)
+    {
+      LOG(LWARNING, ("RasterTileProvider: invalid MBTiles schema", path));
+      sqlite3_close(archive.m_db);
+      continue;
+    }
+    m_archives.push_back(std::move(archive));
+  }
+}
+
+void RasterTileProvider::CloseMbtilesArchives()
+{
+  for (auto & archive : m_archives)
+  {
+    if (archive.m_readTile != nullptr)
+      sqlite3_finalize(archive.m_readTile);
+    if (archive.m_db != nullptr)
+      sqlite3_close(archive.m_db);
+  }
+  m_archives.clear();
+}
+
+bool RasterTileProvider::ReadMbtilesTile(int z, int x, int y, std::vector<char> & encoded)
+{
+  std::lock_guard lock(m_archiveMutex);
+  int const tmsY = (1 << z) - 1 - y;
+  for (auto & archive : m_archives)
+  {
+    auto * statement = archive.m_readTile;
+    sqlite3_reset(statement);
+    sqlite3_clear_bindings(statement);
+    sqlite3_bind_int(statement, 1, z);
+    sqlite3_bind_int(statement, 2, x);
+    sqlite3_bind_int(statement, 3, tmsY);
+    if (sqlite3_step(statement) == SQLITE_ROW)
+    {
+      auto const * bytes = static_cast<char const *>(sqlite3_column_blob(statement, 0));
+      int const size = sqlite3_column_bytes(statement, 0);
+      if (bytes != nullptr && size > 0)
+      {
+        encoded.assign(bytes, bytes + size);
+        sqlite3_reset(statement);
+        return true;
+      }
+    }
+    sqlite3_reset(statement);
+  }
+  return false;
 }
 
 RasterTileProvider::SourceTile RasterTileProvider::ToSourceTile(df::TileKey const & tileKey) const
@@ -308,13 +382,22 @@ bool RasterTileProvider::RequestTile(df::TileKey const & tileKey, dp::Background
   // is safe only if the task was actually posted: a later !IsActive() inside the task means the tile
   // was cancelled meanwhile, but a failed post means nothing can ever deliver or be cancelled.
   auto const posted =
-      GetPlatform().RunTask(Platform::Thread::File, [this, tileKey, mode, url, uid, fileName, rect = src.m_rect]()
+      GetPlatform().RunTask(Platform::Thread::File, [this, tileKey, mode, url, uid, fileName, source = src,
+                                                     rect = src.m_rect]()
   {
     if (!IsActive(tileKey))
       return;
 
     std::vector<uint8_t> rgba;
     uint32_t width = 0, height = 0;
+    std::vector<char> archiveBytes;
+    if (ReadMbtilesTile(source.m_z, source.m_x, source.m_y, archiveBytes) &&
+        DecodeMemoryToRGBA(archiveBytes.data(), archiveBytes.size(), rgba, width, height))
+    {
+      if (DropActive(tileKey))
+        m_onReady(tileKey, mode, uid, width, height, rect, std::move(rgba));
+      return;
+    }
     if (DecodeFileToRGBA(m_cacheDir + fileName, rgba, width, height))  // cache hit
     {
       TouchCacheEntry(fileName);
@@ -327,6 +410,11 @@ bool RasterTileProvider::RequestTile(df::TileKey const & tileKey, dp::Background
 #ifdef ENABLE_STATUS_PLACEHOLDERS
     DeliverPlaceholder(tileKey, mode, Status::Downloading);
 #endif
+    if (url.empty())
+    {
+      DropActive(tileKey);
+      return;
+    }
     StartDownload(tileKey, mode, url, uid, fileName, rect);
   });
 
@@ -495,12 +583,27 @@ void RasterTileProvider::ClearDiskCacheLocked()
 
 void RasterTileProvider::Reconfigure(std::string urlTemplate, uint64_t maxCacheBytes)
 {
+  ReconfigureSources(std::move(urlTemplate), {}, maxCacheBytes);
+}
+
+void RasterTileProvider::ReconfigureSources(std::string urlTemplate, std::vector<std::string> mbtilesPaths,
+                                             uint64_t maxCacheBytes)
+{
   bool urlChanged = false;
   {
     std::lock_guard lock(m_activeMutex);  // guards m_params.m_urlTemplate (also read in RequestTile)
     urlChanged = urlTemplate != m_params.m_urlTemplate;
     m_params.m_urlTemplate = std::move(urlTemplate);
   }
+
+  bool archivesChanged = false;
+  {
+    std::lock_guard lock(m_archiveMutex);
+    archivesChanged = m_params.m_mbtilesPaths != mbtilesPaths;
+    m_params.m_mbtilesPaths = std::move(mbtilesPaths);
+  }
+  if (archivesChanged)
+    OpenMbtilesArchives();
 
   std::lock_guard lock(m_cacheMutex);
   m_params.m_maxCacheBytes = maxCacheBytes;
