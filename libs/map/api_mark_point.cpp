@@ -1,6 +1,7 @@
 #include "map/api_mark_point.hpp"
 
 #include <map>
+#include <set>
 
 namespace style
 {
@@ -30,15 +31,23 @@ df::ColorConstant GetSupportedStyle(std::string_view style)
     return "BookmarkGreen";
   return it->second;
 }
+
+std::string GetSupportedIcon(std::string_view icon)
+{
+  static std::set<std::string_view> const icons = {
+      "sheep", "cow", "goat", "horse", "dog", "person", "tractor", "truck", "car", "drone",
+      "router", "gateway", "beacon", "tracker", "sensor", "camera", "gps", "meter", "pump",
+      "valve", "switch", "battery", "alarm"};
+  return icons.count(icon) ? "edgez-" + std::string(icon) : std::string{};
+}
 }  // namespace style
 
 ApiMarkPoint::ApiMarkPoint(m2::PointD const & ptOrg) : UserMark(ptOrg, UserMark::Type::API) {}
 
 drape_ptr<df::UserPointMark::SymbolNameZoomInfo> ApiMarkPoint::GetSymbolNames() const
 {
-  // TODO: use its own icon.
   auto symbol = make_unique_dp<SymbolNameZoomInfo>();
-  symbol->insert(std::make_pair(1 /* zoomLevel */, "coloredmark-default-s"));
+  symbol->insert(std::make_pair(1 /* zoomLevel */, m_icon.empty() ? "coloredmark-default-s" : m_icon));
   return symbol;
 }
 
@@ -63,4 +72,10 @@ void ApiMarkPoint::SetStyle(df::ColorConstant style)
 {
   SetDirty();
   m_style = style;
+}
+
+void ApiMarkPoint::SetIcon(std::string icon)
+{
+  SetDirty();
+  m_icon = std::move(icon);
 }

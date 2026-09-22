@@ -444,7 +444,10 @@ void ParsedMapApi::SetApiMarks(Framework & fm) const
     auto * mark = editSession.CreateUserMark<ApiMarkPoint>(glPoint);
     mark->SetName(name);
     mark->SetApiID(id);
-    mark->SetStyle(style::GetSupportedStyle(style));
+    auto const separator = style.find(':');
+    mark->SetStyle(style::GetSupportedStyle(style.substr(0, separator)));
+    if (separator != std::string::npos)
+      mark->SetIcon(style::GetSupportedIcon(style.substr(separator + 1)));
   }
 }
 
