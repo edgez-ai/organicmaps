@@ -10,6 +10,7 @@ namespace style
 {
 // Fixes icons which are not supported by Organic Maps.
 df::ColorConstant GetSupportedStyle(std::string_view style);
+std::string GetSupportedIcon(std::string_view icon);
 }  // namespace style
 
 class ApiMarkPoint : public UserMark
@@ -28,6 +29,7 @@ public:
 
   void SetStyle(df::ColorConstant style);
   df::ColorConstant GetStyle() const { return m_style; }
+  void SetIcon(std::string icon);
 
 private:
   std::string m_name;
@@ -35,4 +37,5 @@ private:
 
   /// @todo Replace ColorConstant with std::string for possible future custom styles.
   df::ColorConstant m_style;
+  std::string m_icon;
 };
