@@ -11,7 +11,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 SIZES = {"mdpi": 18, "hdpi": 27, "xhdpi": 36, "6plus": 43, "xxhdpi": 54, "xxxhdpi": 64}
-ICONS = sorted((ROOT / "data/styles/default/light/symbols").glob("edgez-*.svg"))
+ICONS = sorted((ROOT / "data/styles/default/light/symbols").glob("edgez_*-*.svg"))
 
 for density, size in SIZES.items():
     for theme in ("light", "dark"):

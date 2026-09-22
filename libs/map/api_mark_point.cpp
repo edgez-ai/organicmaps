@@ -38,7 +38,7 @@ std::string GetSupportedIcon(std::string_view icon)
       "sheep", "cow", "goat", "horse", "dog", "person", "tractor", "truck", "car", "drone",
       "router", "gateway", "beacon", "tracker", "sensor", "camera", "gps", "meter", "pump",
       "valve", "switch", "battery", "alarm"};
-  return icons.count(icon) ? "edgez-" + std::string(icon) : std::string{};
+  return icons.count(icon) ? "edgez_" + std::string(icon) + "-icon" : std::string{};
 }
 }  // namespace style
 
